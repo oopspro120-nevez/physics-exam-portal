@@ -16,3 +16,9 @@ test('Auth cookies are session-only and sign-out still deletes them', () => {
     maxAge: 0,
   });
 });
+
+test('Offline timeout and network heartbeat constants match the 30-second policy', async () => {
+  const session = await import('../lib/session');
+  assert.equal(session.OFFLINE_TIMEOUT_MS, 30000);
+  assert.equal(session.PRESENCE_HEARTBEAT_MS, 10000);
+});

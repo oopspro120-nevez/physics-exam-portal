@@ -1,5 +1,7 @@
 export const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 export const IDLE_WARNING_MS = 60 * 1000;
+export const OFFLINE_TIMEOUT_MS = 30 * 1000;
+export const PRESENCE_HEARTBEAT_MS = 10 * 1000;
 export function activityAge(lastActivity: number | null, now: number) {
   return lastActivity === null ? null : Math.min(IDLE_TIMEOUT_MS, Math.max(0, now - lastActivity));
 }

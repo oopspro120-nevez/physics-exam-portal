@@ -1,23 +1,30 @@
 'use client';
-import type { Upload } from 'tus-js-client';
 import { publicEnv } from '@/lib/env';
+import { uploadClient } from '@/lib/supabase/browser';
 import { fileMime, sniffMime, validateFile } from '@/utils/files';
 import type { Asset } from '@/types/domain';
+
 export type UploadProgress = {
   phase: 'preparing' | 'uploading' | 'verifying' | 'done';
   percent: number;
 };
+
 type Job = {
   id: string;
   created: number;
   asset?: Asset;
   token?: string;
   uploaded?: boolean;
-  uploader?: Upload;
   progress?: (p: UploadProgress) => void;
 };
-// Retain a ticket only in this page, so retry never creates a duplicate asset or leaks an upload token to disk.
+
+// Keep a ticket only in this page so retry never creates duplicate file records.
 const jobs = new WeakMap<File, Map<string, Job>>();
+
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function jsonRequest(method: string, payload: unknown) {
   for (let attempt = 0; ; attempt++) {
     let retryable = true;
@@ -34,10 +41,57 @@ async function jsonRequest(method: string, payload: unknown) {
       return d;
     } catch (e) {
       if (!retryable || attempt >= 2) throw e;
-      await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 1000));
+      await sleep((attempt + 1) * 1000);
     }
   }
 }
+
+async function verifyUploadedAsset(id: string) {
+  await jsonRequest('PATCH', { id });
+}
+
+async function signedDirectUpload(
+  file: File,
+  bucket: string,
+  path: string,
+  token: string,
+  type: string,
+  assetId: string,
+  progress?: (p: UploadProgress) => void,
+) {
+  // The portal limits files to 25 MB, so the signed Storage upload is simpler and
+  // more reliable than keeping a separate TUS connection through restrictive networks.
+  // Supabase Storage receives the bytes directly; they never pass through Vercel.
+  publicEnv(); // Fail early with the portal's existing SETUP_REQUIRED behavior.
+  const client = uploadClient();
+  let lastMessage = '';
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    progress?.({ phase: 'uploading', percent: attempt === 0 ? 25 : 50 + attempt * 10 });
+    const { error } = await client.storage.from(bucket).uploadToSignedUrl(path, token, file, {
+      contentType: type,
+      cacheControl: '3600',
+    });
+    if (!error) return;
+
+    lastMessage = error.message || String(error);
+    // A proxy can drop the final response even though Storage committed the object.
+    // Verify immediately before attempting another full upload to the same path.
+    try {
+      progress?.({ phase: 'verifying', percent: 100 });
+      await verifyUploadedAsset(assetId);
+      return;
+    } catch {
+      await sleep((attempt + 1) * 1200);
+    }
+  }
+
+  throw new Error(
+    'Không thể tải tệp lên Supabase Storage. Hãy kiểm tra mạng rồi bấm Thử lại.' +
+      (lastMessage ? ` (${lastMessage})` : ''),
+  );
+}
+
 export async function uploadFile(
   file: File,
   bucket: string,
@@ -51,6 +105,7 @@ export async function uploadFile(
     throw new Error(
       'Nội dung tệp không đúng định dạng. Hãy chọn tệp PDF/ảnh gốc, không chỉ đổi tên phần mở rộng.',
     );
+
   let group = jobs.get(file);
   if (!group) {
     group = new Map();
@@ -62,9 +117,11 @@ export async function uploadFile(
     job = { id: crypto.randomUUID(), created: Date.now() };
     group.set(key, job);
   }
+
   const active = job;
   active.progress = onProgress;
   onProgress?.({ phase: 'preparing', percent: 0 });
+
   if (!active.asset) {
     const ticket = await jsonRequest('POST', {
       upload_id: active.id,
@@ -82,46 +139,36 @@ export async function uploadFile(
     active.token = ticket.token;
     active.uploaded = ticket.ready === true;
   }
+
   if (!active.uploaded) {
-    const { Upload } = await import('tus-js-client');
-    const { url, key: publicKey } = publicEnv();
-    const storage = new URL(url);
-    // Supabase recommends the direct Storage hostname for resumable uploads.
-    if (/^[a-z0-9-]+\.supabase\.co$/.test(storage.hostname))
-      storage.hostname = storage.hostname.replace('.supabase.co', '.storage.supabase.co');
-    await new Promise<void>((resolve, reject) => {
-      const options = {
-        endpoint: `${storage.origin}/storage/v1/upload/resumable`,
-        headers: { apikey: publicKey, 'x-signature': active.token! },
-        retryDelays: [0, 1000, 3000, 5000, 10000],
-        chunkSize: 6 * 1024 * 1024,
-        uploadDataDuringCreation: true,
-        storeFingerprintForResuming: false,
-        metadata: {
-          bucketName: bucket,
-          objectName: active.asset!.path,
-          contentType: type,
-          cacheControl: '3600',
-        },
-        onProgress: (sent: number, total: number) =>
-          active.progress?.({
-            phase: 'uploading',
-            percent: Math.min(99, Math.round((sent / total) * 100)),
-          }),
-        onSuccess: () => {
-          active.uploaded = true;
-          resolve();
-        },
-        onError: () =>
-          reject(new Error('Tải tệp bị gián đoạn. Giữ trang này và bấm Thử lại để tiếp tục.')),
-      };
-      if (!active.uploader) active.uploader = new Upload(file, options);
-      else Object.assign(active.uploader.options, options);
-      active.uploader.start();
-    });
+    try {
+      await signedDirectUpload(
+        file,
+        bucket,
+        active.asset!.path,
+        active.token!,
+        type,
+        active.asset!.id,
+        active.progress,
+      );
+      active.uploaded = true;
+    } catch (uploadError) {
+      // If the last Storage response was lost, verification can still prove that the
+      // object arrived successfully and prevents an unnecessary duplicate upload.
+      try {
+        onProgress?.({ phase: 'verifying', percent: 100 });
+        await verifyUploadedAsset(active.asset!.id);
+        active.uploaded = true;
+        onProgress?.({ phase: 'done', percent: 100 });
+        return { ...active.asset!, ready: true } as Asset;
+      } catch {
+        throw uploadError;
+      }
+    }
   }
+
   onProgress?.({ phase: 'verifying', percent: 100 });
-  await jsonRequest('PATCH', { id: active.asset!.id });
+  await verifyUploadedAsset(active.asset!.id);
   onProgress?.({ phase: 'done', percent: 100 });
   return { ...active.asset!, ready: true } as Asset;
 }

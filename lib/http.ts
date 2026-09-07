@@ -7,7 +7,7 @@ export const messages: Record<string, string> = {
     'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại; bản nháp đã lưu vẫn được giữ.',
   FORBIDDEN: 'Bạn không có quyền thực hiện thao tác này.',
   DEVICE_DENIED:
-    'Tài khoản đang được dùng trên thiết bị khác. Hãy đăng xuất ở thiết bị đó; nếu không thể truy cập, liên hệ giáo viên để đặt lại thiết bị.',
+    'Tài khoản đang được dùng trên thiết bị khác. Nếu thiết bị cũ vừa mất mạng, hãy chờ 30 giây rồi thử lại; nếu vẫn bị khóa, liên hệ giáo viên để đặt lại thiết bị.',
   EXAM_LOCKED: 'Chỉ có thể sửa đề thi ở trạng thái bản nháp.',
   EXAM_SCHEDULE_PAST: 'Hạn cuối đã qua. Hãy sửa lịch trước khi giao đề.',
   EXAM_INCOMPLETE: 'Cần tải PDF và thêm ít nhất một Problem trước khi mở đề.',
