@@ -3,7 +3,10 @@ import { getProgress } from '@/services/student';
 import { PageHead, Stat } from '@/components/ui';
 import { StudentExams } from '@/components/student-exams';
 export default async function Page() {
-  const [d, progress] = await Promise.all([overview(), getProgress()]);
+  const [d, progress] = await Promise.all([
+    overview(['classes', 'exams', 'sessions']),
+    getProgress(),
+  ]);
   return (
     <>
       <PageHead

@@ -4,6 +4,7 @@ const optionalId = z.union([id, z.literal('')]).optional();
 const bool = z.preprocess((v) => v === true || v === 'true' || v === 'on', z.boolean());
 const baseExam = {
   id: optionalId,
+  request_id: id.optional(),
   title: z.string().trim().min(1).max(200),
   description: z.string().max(8000).default(''),
   class_id: id,

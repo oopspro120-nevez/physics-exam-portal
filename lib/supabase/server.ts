@@ -2,7 +2,9 @@ import 'server-only';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { publicEnv } from '@/lib/env';
-export async function serverClient() {
+import { cache } from 'react';
+import { sessionCookieOptions } from '@/lib/session';
+export const serverClient = cache(async () => {
   const jar = await cookies();
   const { url, key } = publicEnv();
   return createServerClient(url, key, {
@@ -12,7 +14,7 @@ export async function serverClient() {
         try {
           items.forEach(({ name, value, options }) =>
             jar.set(name, value, {
-              ...options,
+              ...sessionCookieOptions(options),
               httpOnly: true,
               secure: process.env.NODE_ENV === 'production',
               sameSite: 'lax',
@@ -24,4 +26,4 @@ export async function serverClient() {
       },
     },
   });
-}
+});

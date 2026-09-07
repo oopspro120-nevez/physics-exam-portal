@@ -1,8 +1,9 @@
 import type { NextConfig } from 'next';
 const config: NextConfig = {
   poweredByHeader: false,
-    async headers() {
+  async headers() {
     return [
+      { source: '/api/:path*', headers: [{ key: 'Cache-Control', value: 'private, no-store' }] },
       {
         source: '/(.*)',
         headers: [

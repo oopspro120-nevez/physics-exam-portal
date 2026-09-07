@@ -15,7 +15,8 @@ export default async function Page({
 }) {
   const { id } = await params,
     q = await searchParams;
-  const [d, o] = await Promise.all([teacherExam(id), overview()]);
+  const d = await teacherExam(id, 'grading');
+  const o = await overview(['profiles', 'members'], d.exam.class_id);
   const members = new Set(
     o.members.filter((m) => m.class_id === d.exam.class_id).map((m) => m.student_id),
   );
@@ -45,11 +46,11 @@ export default async function Page({
         }
       />
       <div className="tabs">
-        <Link className="tab" href={`/teacher/exams/${id}`}>
+        <Link prefetch={false} className="tab" href={`/teacher/exams/${id}`}>
           Đề & cấu hình
         </Link>
         <span className="tab active">Tiến độ & chấm bài</span>
-        <Link className="tab" href={`/teacher/exams/${id}/clarifications`}>
+        <Link prefetch={false} className="tab" href={`/teacher/exams/${id}/clarifications`}>
           Giải đáp & thông báo
         </Link>
       </div>
@@ -104,7 +105,7 @@ export default async function Page({
                   return (
                     <tr key={s.id}>
                       <td>
-                        <Link className="text-link" href={`?student=${s.id}`}>
+                        <Link prefetch={false} className="text-link" href={`?student=${s.id}`}>
                           {s.full_name}
                         </Link>
                       </td>
@@ -112,7 +113,7 @@ export default async function Page({
                         const a = bestSubmission(attempts.filter((a) => a.problem_id === p.id));
                         return (
                           <td className="score-cell" key={p.id}>
-                            <Link href={`?student=${s.id}&problem=${p.id}`}>
+                            <Link prefetch={false} href={`?student=${s.id}&problem=${p.id}`}>
                               <Badge
                                 color={
                                   a?.status === 'SOLVED' || a?.status === 'REVIEWED'
@@ -158,7 +159,7 @@ export default async function Page({
               q.problem ? 'Lịch sử của Problem đã chọn' : 'Toàn bộ các lần nộp trong kỳ thi'
             }
             action={
-              <Link className="button" href={`/teacher/exams/${id}/grading`}>
+              <Link prefetch={false} className="button" href={`/teacher/exams/${id}/grading`}>
                 Đóng chi tiết
               </Link>
             }
@@ -246,7 +247,11 @@ export default async function Page({
                   <p className="teacher-reply">{c.answer || 'Chưa trả lời'}</p>
                 </div>
               ))}
-            <Link className="text-link small" href={`/teacher/exams/${id}/clarifications`}>
+            <Link
+              prefetch={false}
+              className="text-link small"
+              href={`/teacher/exams/${id}/clarifications`}
+            >
               Mở trang giải đáp →
             </Link>
           </section>

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { overview } from '@/services/data';
 import { PageHead, Stat, Empty, Badge, fmt } from '@/components/ui';
 export default async function Page() {
-  const d = await overview();
+  const d = await overview(['classes', 'members', 'exams']);
   const opened = d.exams.filter(
     (e) =>
       e.status === 'published' &&

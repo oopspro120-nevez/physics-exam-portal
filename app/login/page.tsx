@@ -2,7 +2,12 @@ import { Atom, BookOpen, FileCheck2, ShieldCheck } from 'lucide-react';
 import { LoginForm } from '@/components/login-form';
 import { isConfigured } from '@/lib/env';
 export const dynamic = 'force-dynamic';
-export default function Login() {
+export default async function Login({
+  searchParams,
+}: {
+  searchParams: Promise<{ reason?: string }>;
+}) {
+  const { reason } = await searchParams;
   return (
     <main className="login-page">
       <section className="login-brand">
@@ -45,13 +50,18 @@ export default function Login() {
           <span className="eyebrow">CHÀO MỪNG TRỞ LẠI</span>
           <h2>Đăng nhập cổng thi</h2>
           <p className="muted">Sẵn sàng cho bài toán tiếp theo.</p>
+          {reason === 'expired' && (
+            <p className="notice" role="status">
+              Phiên đăng nhập đã kết thúc. Đăng nhập lại để tiếp tục; bản nháp đã lưu vẫn được giữ.
+            </p>
+          )}
           <LoginForm configured={isConfigured()} />
           <div className="device-note">
             <ShieldCheck size={20} />
             <p>
               <strong>Một tài khoản · Một thiết bị</strong>
               <br />
-              Hãy dùng trình duyệt thường sử dụng để truy cập kỳ thi.
+              Đăng xuất để chuyển thiết bị. Phiên tự kết thúc sau 30 phút không thao tác.
             </p>
           </div>
         </div>

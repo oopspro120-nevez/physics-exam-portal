@@ -272,6 +272,11 @@ test('PostgreSQL migrations, RLS, device binding, attempts and grading', async (
         })
       ).id;
       await root();
+      await db.query(
+        `insert into public.file_assets(id,owner_id,exam_id,bucket,path,name,mime_type,size_bytes,ready)
+        values($1,$2,$3,'exams','another.pdf','another.pdf','application/pdf',100,true)`,
+        [randomUUID(), teacher.id, ex],
+      );
       await db.query(`update public.exams set pdf_path='another.pdf' where id=$1`, [ex]);
       await actor(teacher);
       await manage('exam_publish', { id: ex });
@@ -390,6 +395,165 @@ test('PostgreSQL migrations, RLS, device binding, attempts and grading', async (
     await actor(teacher2);
     assert.ok((await db.query('select * from public.exams')).rows.length > 0);
   });
+
+  await t.test('Creation, upload completion and publication retry are idempotent', async () => {
+    await actor(teacher2);
+    const request_id = randomUUID();
+    const payload = { ...examPayload, class_id: c2, request_id };
+    const draft = (await manage('exam_save', payload)).id;
+    assert.equal((await manage('exam_save', payload)).id, draft);
+    await manage('problem_save', {
+      ...problemPayload,
+      exam_id: draft,
+      answer_type: 'essay',
+      correct_answer: '',
+      auto_points: 0,
+    });
+    const asset = {
+      id: randomUUID(),
+      exam_id: draft,
+      bucket: 'exams',
+      path: 'retry/first.pdf',
+      name: 'Đề.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 100,
+    };
+    assert.equal((await rpc('register_file', [JSON.stringify(asset)])).id, asset.id);
+    assert.equal((await rpc('register_file', [JSON.stringify(asset)])).id, asset.id);
+    await assert.rejects(
+      rpc('register_file', [JSON.stringify({ ...asset, size_bytes: 101 })]),
+      /INVALID_FILES/,
+    );
+    await assert.rejects(manage('exam_publish', { id: draft }), /EXAM_INCOMPLETE/);
+    await assert.rejects(
+      rpc('manage_legacy', ['exam_publish', JSON.stringify({ id: draft })]),
+      /permission denied/,
+    );
+    await actor(student2);
+    await assert.rejects(rpc('register_file', [JSON.stringify(asset)]), /INVALID_FILES/);
+    await root();
+    await rpc('complete_file', [asset.id, 100, 'application/pdf']);
+    await actor(teacher2);
+    const second = { ...asset, id: randomUUID(), path: 'retry/second.pdf' };
+    await rpc('register_file', [JSON.stringify(second)]);
+    await root();
+    await rpc('complete_file', [second.id, 100, 'application/pdf']);
+    await rpc('complete_file', [asset.id, 100, 'application/pdf']);
+    assert.equal(
+      (
+        await db.query<{ pdf_path: string }>('select pdf_path from public.exams where id=$1', [
+          draft,
+        ])
+      ).rows[0].pdf_path,
+      second.path,
+    );
+    await actor(teacher2);
+    assert.equal((await manage('exam_publish', { id: draft })).id, draft);
+    assert.equal((await manage('exam_publish', { id: draft })).id, draft);
+    const past = (
+      await manage('exam_save', {
+        ...examPayload,
+        class_id: c2,
+        start_time: new Date(Date.now() - 120000).toISOString(),
+        end_time: new Date(Date.now() - 60000).toISOString(),
+      })
+    ).id;
+    await assert.rejects(manage('exam_publish', { id: past }), /EXAM_SCHEDULE_PAST/);
+  });
+  await t.test('Idle expiry is enforced by RLS and cannot be revived by a heartbeat', async () => {
+    await root();
+    const person = await createPerson('idle.test', 'teacher');
+    const tab = randomUUID();
+    await actor(person);
+    const opened = await rpc<{ expires_at: string }>('portal_session', [
+      'open',
+      tab,
+      person.hash,
+      null,
+    ]);
+    const polled = await rpc<{ expires_at: string }>('portal_session', [
+      'heartbeat',
+      tab,
+      person.hash,
+      null,
+    ]);
+    assert.equal(opened.expires_at, polled.expires_at);
+    await assert.rejects(rpc('portal_context', ['wrong-device']), /DEVICE_DENIED/);
+    await root();
+    await db.query(
+      "update private.device_sessions set last_activity_at=now()-interval '31 minutes' where session_id=$1",
+      [person.sid],
+    );
+    await actor(person);
+    assert.equal(await rpc('current_role'), null);
+    assert.equal((await db.query('select * from public.profiles')).rows.length, 0);
+    await assert.rejects(
+      rpc('portal_session', ['heartbeat', tab, person.hash, 0]),
+      /SESSION_EXPIRED/,
+    );
+    await root();
+    const next = { ...person, hash: 'next-device', sid: randomUUID() };
+    assert.equal(await rpc('bind_device', [next.id, next.hash, next.sid, 'New']), true);
+    await actor(person);
+    assert.equal(await rpc('current_role'), null);
+    await actor(next);
+    assert.equal(await rpc('current_role'), 'teacher');
+  });
+  await t.test(
+    'Closing one tab preserves another; reload grace and logout release the device',
+    async () => {
+      await root();
+      const person = await createPerson('tabs.test', 'teacher');
+      const a = randomUUID(),
+        b = randomUUID(),
+        reload = randomUUID();
+      await actor(person);
+      await rpc('portal_session', ['open', a, person.hash, null]);
+      await rpc('portal_session', ['open', b, person.hash, null]);
+      await rpc('portal_session', ['close', a, person.hash, null]);
+      assert.equal(await rpc('current_role'), 'teacher');
+      await root();
+      assert.equal(
+        (
+          await db.query<{ closed_at: string | null }>(
+            'select closed_at from private.device_sessions where session_id=$1',
+            [person.sid],
+          )
+        ).rows[0].closed_at,
+        null,
+      );
+      await actor(person);
+      await rpc('portal_session', ['close', b, person.hash, null]);
+      await rpc('portal_session', ['open', reload, person.hash, null]);
+      await rpc('portal_session', ['close', b, person.hash, null]);
+      assert.equal(await rpc('current_role'), 'teacher');
+      await rpc('portal_session', ['close', reload, person.hash, null]);
+      await root();
+      await db.query(
+        "update private.device_sessions set closed_at=now()-interval '61 seconds' where session_id=$1",
+        [person.sid],
+      );
+      await actor(person);
+      assert.equal(await rpc('current_role'), null);
+      await assert.rejects(
+        rpc('portal_session', ['open', randomUUID(), person.hash, 0]),
+        /SESSION_EXPIRED/,
+      );
+      await root();
+      person.sid = randomUUID();
+      person.hash = 'device-after-close';
+      assert.equal(await rpc('bind_device', [person.id, person.hash, person.sid, 'Next']), true);
+      await actor(person);
+      assert.equal(await rpc('end_portal_session', [person.hash]), true);
+      assert.equal(await rpc('current_role'), null);
+      assert.equal(await rpc('end_portal_session', [person.hash]), false);
+      await root();
+      assert.equal(
+        await rpc('bind_device', [person.id, 'another-device', randomUUID(), 'Other']),
+        true,
+      );
+    },
+  );
   await root();
   await db.close();
 });

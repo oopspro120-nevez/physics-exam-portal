@@ -10,8 +10,8 @@ export function AutoRefresh() {
         !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName || '')
       )
         router.refresh();
-    }, 10000);
+    }, 30000);
     return () => clearInterval(id);
   }, [router]);
-  return <span className="small muted">Tự cập nhật mỗi 10 giây</span>;
+  return <span className="small muted">Tự cập nhật mỗi 30 giây khi đang xem</span>;
 }

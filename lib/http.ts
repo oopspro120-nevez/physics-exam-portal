@@ -3,10 +3,13 @@ import { ZodError } from 'zod';
 export const messages: Record<string, string> = {
   SETUP_REQUIRED: 'Hệ thống chưa được kết nối. Vui lòng liên hệ quản trị viên.',
   UNAUTHORIZED: 'Vui lòng đăng nhập lại.',
+  SESSION_EXPIRED:
+    'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại; bản nháp đã lưu vẫn được giữ.',
   FORBIDDEN: 'Bạn không có quyền thực hiện thao tác này.',
   DEVICE_DENIED:
-    'Tài khoản này đã được đăng ký trên một thiết bị khác. Vui lòng liên hệ giáo viên để được cấp lại quyền truy cập.',
+    'Tài khoản đang được dùng trên thiết bị khác. Hãy đăng xuất ở thiết bị đó; nếu không thể truy cập, liên hệ giáo viên để đặt lại thiết bị.',
   EXAM_LOCKED: 'Chỉ có thể sửa đề thi ở trạng thái bản nháp.',
+  EXAM_SCHEDULE_PAST: 'Hạn cuối đã qua. Hãy sửa lịch trước khi giao đề.',
   EXAM_INCOMPLETE: 'Cần tải PDF và thêm ít nhất một Problem trước khi mở đề.',
   EXAM_NOT_OPEN: 'Kỳ thi chưa mở hoặc đã đóng.',
   TIME_EXPIRED: 'Đã hết thời gian làm bài.',
@@ -41,8 +44,9 @@ export function fail(error: unknown) {
         : 'Không thể thực hiện. Vui lòng thử lại hoặc liên hệ quản trị viên.',
     },
     {
+      headers: { 'Cache-Control': 'private, no-store' },
       status:
-        known === 'UNAUTHORIZED'
+        known === 'UNAUTHORIZED' || known === 'SESSION_EXPIRED'
           ? 401
           : known === 'FORBIDDEN' || known === 'DEVICE_DENIED'
             ? 403

@@ -5,7 +5,8 @@ import { ManagedForm } from '@/components/mutations';
 import { AutoRefresh } from '@/components/auto-refresh';
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [d, o] = await Promise.all([teacherExam(id), overview()]);
+  const d = await teacherExam(id, 'discussion');
+  const o = await overview(['profiles', 'members'], d.exam.class_id);
   return (
     <>
       <PageHead title="Giải đáp & thông báo" description={d.exam.title} action={<AutoRefresh />} />

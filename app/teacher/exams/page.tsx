@@ -3,14 +3,14 @@ import { Clock, CalendarDays, BookOpen } from 'lucide-react';
 import { overview } from '@/services/data';
 import { PageHead, Empty, Badge, fmt } from '@/components/ui';
 export default async function Page() {
-  const d = await overview();
+  const d = await overview(['classes', 'exams']);
   return (
     <>
       <PageHead
         title="Kỳ thi"
         description="Từ đề thi PDF đến lời giải và kết quả."
         action={
-          <Link className="button primary" href="/teacher/exams/new">
+          <Link prefetch={false} className="button primary" href="/teacher/exams/new">
             + Tạo kỳ thi
           </Link>
         }
@@ -18,7 +18,12 @@ export default async function Page() {
       {d.exams.length ? (
         <div className="grid3">
           {d.exams.map((e) => (
-            <Link href={'/teacher/exams/' + e.id} className="card exam-card" key={e.id}>
+            <Link
+              prefetch={false}
+              href={'/teacher/exams/' + e.id}
+              className="card exam-card"
+              key={e.id}
+            >
               <div className="row between">
                 <Badge color={e.status === 'published' ? 'green' : ''}>
                   {e.status === 'draft'

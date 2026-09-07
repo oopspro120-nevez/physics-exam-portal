@@ -6,6 +6,12 @@ Cổng giao đề, làm bài và chấm thi Vật lý/Olympiad. Luồng làm vi�
 
 **Trạng thái bàn giao:** các luồng chức năng đã được viết và build. Database/RLS được kiểm thử bằng PostgreSQL chạy trong PGlite. Chưa kết nối dự án Supabase thật; chưa xác nhận vận hành Auth, Storage và các luồng trình duyệt với tài khoản thật. Xem `docs/PHASE6_REPORT.md` và `docs/ACCEPTANCE.md` trước khi dùng cho một kỳ thi chính thức.
 
+## Cập nhật tháng 9/2026
+
+Bổ sung tự kết thúc phiên sau 30 phút không thao tác, giải phóng thiết bị khi đăng xuất, xử lý đóng nhiều tab, upload PDF có thể tiếp tục, tạo/giao đề chống trùng và giao diện soạn đề theo từng bước. Các trang tải đúng nhóm dữ liệu cần dùng.
+
+**Hệ thống đã chạy 001–006:** chỉ áp dụng thêm `007_session_lifecycle.sql`, rồi `008_upload_and_publish.sql` trước khi triển khai mã nguồn mới. Hệ thống mới chạy đủ 001–008 theo thứ tự. Xem **[hướng dẫn cập nhật, giới hạn và phương án vận hành khoảng 20 người](docs/UPGRADE_2026_09.md)**. Không chạy lại bộ khởi tạo trên dữ liệu đang sử dụng.
+
 ## 1. Cài Node.js
 
 1. Tải bản Node.js 24 cho hệ điều hành đang dùng tại [nodejs.org](https://nodejs.org/en/download).
@@ -74,6 +80,8 @@ Trong Supabase Dashboard → **SQL Editor**, mở lần lượt các file dướ
 | 4      | `supabase/migrations/004_files.sql`               | Đăng ký metadata và xác nhận file                        |
 | 5      | `supabase/migrations/005_contest.sql`             | Phiên thi, timer, autosave, attempts, tính điểm, kết quả |
 | 6      | `supabase/migrations/006_storage.sql`             | Ba bucket private và Storage RLS                         |
+| 7 | `supabase/migrations/007_session_lifecycle.sql` | Hết hạn phiên, nhiều tab, giải phóng thiết bị |
+| 8 | `supabase/migrations/008_upload_and_publish.sql` | Thử lại upload/tạo đề/giao đề an toàn |
 
 Đây là bộ migration khởi tạo. Không chạy lại toàn bộ trên database đã có cấu trúc này. Không tắt RLS khi gặp lỗi quyền; kiểm tra thứ tự migration và thông tin kết nối. Sau khi đã đưa hệ thống vào sử dụng, mọi thay đổi schema phải thành migration mới; không sửa rồi chạy lại các file đã áp dụng.
 
@@ -124,6 +132,8 @@ npm run bootstrap-admin
 
 Nhập username, họ tên và mật khẩu. Mật khẩu được ẩn khi nhập, yêu cầu tối thiểu 12 ký tự. Script chỉ tạo Admin đầu tiên; nếu đã có Admin, script sẽ dừng. Không có mật khẩu Admin mặc định.
 
+Nếu tạo Admin thất bại, script hiển thị mã lỗi Supabase, HTTP status, thông báo gốc và thời điểm UTC, đồng thời che khóa/mật khẩu trong phần chẩn đoán. Ghi lại phần lỗi để xử lý đúng nguyên nhân; không chạy lại migration hoặc tắt RLS chỉ vì một thông báo lỗi. Với `unexpected_failure`/`Database error`, kiểm tra Auth logs rồi Postgres logs tại cùng thời điểm. Các mã khác được giải thích trong [tài liệu lỗi Supabase Auth](https://supabase.com/docs/guides/auth/debugging/error-codes).
+
 Sau đó:
 
 1. Đăng nhập `/login` bằng username vừa tạo.
@@ -152,7 +162,7 @@ commit;
 
 Trình tự:
 
-1. Dùng một database Supabase dành cho production, chạy migration đủ 6 file.
+1. Dùng một database Supabase dành cho production, chạy migration đủ 8 file (001–008).
 2. Đưa mã nguồn lên kho Git riêng; không đưa `.env.local`, `node_modules`, `.next`, `backups` lên Git.
 3. Cấu hình biến môi trường trong trang quản trị hosting.
 4. Build và deploy.
@@ -212,7 +222,7 @@ Bản nháp lưu cục bộ theo tài khoản/kỳ thi/Problem, rồi đồng b�
 
 Lần nộp chính thức chỉ thành công sau xác nhận server. Request ID giúp gửi lại một yêu cầu không tạo lượt nộp trùng. File phải được tải xong và xác minh trước khi đính kèm. Bản nháp và file upload chưa gắn vào một lần nộp không tự trở thành bài đã nộp.
 
-Thông báo và giải đáp cập nhật bằng polling mỗi 10 giây, không tải lại toàn bộ trang. Bản này chưa triển khai WebSocket/Supabase Realtime hoặc ghép ảnh thành PDF.
+Thông báo và giải đáp của học sinh cập nhật mỗi 20 giây khi trang đang hiển thị. Trang chấm bài/giải đáp của giáo viên cập nhật mỗi 30 giây khi không nhập liệu. Bản này chưa triển khai WebSocket/Supabase Realtime hoặc ghép ảnh thành PDF.
 
 ## Database và RLS
 

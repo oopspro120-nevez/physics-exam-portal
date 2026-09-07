@@ -44,6 +44,7 @@ export function ManagedForm({
           for (const k of ['start_time', 'end_time'])
             if (data[k]) data[k] = new Date(String(data[k])).toISOString();
           const d = await mutate(action, data);
+          form.dispatchEvent(new Event('portal-form-saved', { bubbles: true }));
           setError(false);
           setMessage('Đã lưu thành công.');
           if (reset) form.reset();
@@ -57,7 +58,9 @@ export function ManagedForm({
         }
       }}
     >
-      {children}
+      <fieldset className="form-fieldset" disabled={busy}>
+        {children}
+      </fieldset>
       {message && (
         <div role="status" className={'notice ' + (error ? 'danger' : 'success')}>
           {message}
@@ -78,12 +81,14 @@ export function ActionButton({
   children,
   danger = false,
   confirmation,
+  disabled = false,
 }: {
   action: string;
   payload: Record<string, unknown>;
   children: React.ReactNode;
   danger?: boolean;
   confirmation?: string;
+  disabled?: boolean;
 }) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
@@ -93,7 +98,7 @@ export function ActionButton({
       <button
         type="button"
         className={'button compact ' + (danger ? 'danger' : '')}
-        disabled={busy}
+        disabled={busy || disabled}
         onClick={async () => {
           if (confirmation && !window.confirm(confirmation)) return;
           setBusy(true);

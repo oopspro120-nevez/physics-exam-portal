@@ -1,16 +1,26 @@
 export const MAX_SOLUTION_FILES = 6;
+const mimeTypes: Record<string, string> = {
+  pdf: 'application/pdf',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+};
+export function fileMime(file: Pick<File, 'name' | 'type'>) {
+  const expected = mimeTypes[file.name.split('.').pop()?.toLowerCase() || ''];
+  // Some browsers/Windows installations provide no MIME type for a valid PDF.
+  return !file.type || file.type === 'application/octet-stream' ? expected : file.type;
+}
 export function validateFile(file: Pick<File, 'name' | 'size' | 'type'>, bucket: string) {
   const max = bucket === 'exams' ? 25 : 15;
   if (file.size <= 0 || file.size > max * 1024 * 1024)
     throw new Error(`Tệp phải nhỏ hơn hoặc bằng ${max} MB.`);
   const ext = file.name.split('.').pop()?.toLowerCase();
-  const mime: Record<string, string> = {
-    pdf: 'application/pdf',
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-  };
-  if (!ext || !mime[ext] || mime[ext] !== file.type || (bucket === 'exams' && ext !== 'pdf'))
+  if (
+    !ext ||
+    !mimeTypes[ext] ||
+    mimeTypes[ext] !== fileMime(file) ||
+    (bucket === 'exams' && ext !== 'pdf')
+  )
     throw new Error('Chỉ nhận PDF, JPG, JPEG hoặc PNG hợp lệ.');
   return ext;
 }

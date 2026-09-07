@@ -43,7 +43,9 @@ Trình duyệt tạo UUID ngẫu nhiên trong lần đăng nhập đầu. Server
 
 JWT có chữ ký đúng nhưng chưa được server xác nhận thiết bị vẫn không có dữ liệu qua RLS: `current_role()` kiểm tra `private.device_sessions` theo `auth.jwt().session_id`. Backend còn so hash cookie để hạn chế việc mang riêng cookie Auth sang browser khác.
 
-Reset thiết bị xóa các liên kết session và vô hiệu hóa thiết bị cũ. Khóa tài khoản cũng thu hồi liên kết. Lần đăng nhập sau reset đăng ký thiết bị mới. Đây là liên kết với trình duyệt, không phải nhận dạng phần cứng. Xóa cookies, dùng browser khác hoặc ẩn danh có thể cần giáo viên reset. Người chủ động sao chép đầy đủ thông tin phiên/thiết bị vẫn có thể vượt mô hình này; hệ thống không được mô tả như công cụ chống gian lận tuyệt đối.
+Sau migration 007, `current_role()` còn kiểm tra thời hạn 30 phút từ thao tác cuối và khoảng chờ 60 giây khi nhận được tín hiệu đóng tab cuối. `portal_session` phân biệt thao tác người dùng với polling; `private.session_tabs` lưu trạng thái từng tab. Cookie Auth không có thời hạn lưu dài. Đăng xuất chủ động xóa các liên kết phiên của thiết bị và vô hiệu hóa thiết bị. Khi đăng nhập, `bind_device` dọn phiên hết hạn trước khi quyết định cho phép thiết bị mới.
+
+Reset thiết bị xóa các liên kết session và vô hiệu hóa thiết bị cũ. Khóa tài khoản cũng thu hồi liên kết. Lần đăng nhập sau reset đăng ký thiết bị mới. Đây là liên kết với trình duyệt, không phải nhận dạng phần cứng. Nếu thiết bị cũ vẫn có phiên hợp lệ, dùng trình duyệt khác cần đăng xuất thiết bị cũ, chờ phiên hết hạn hoặc nhờ giáo viên đặt lại thiết bị. Người chủ động sao chép đầy đủ thông tin phiên/thiết bị vẫn có thể vượt mô hình này; hệ thống không được mô tả như công cụ chống gian lận tuyệt đối.
 
 ## Tệp
 

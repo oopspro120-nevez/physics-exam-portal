@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { authContext } from '@/lib/auth';
 import { adminClient } from '@/lib/supabase/admin';
 import { checkOrigin, checked, fail, readJson } from '@/lib/http';
-import { validateFile, sniffMime } from '@/utils/files';
+import { validateFile, sniffMime, fileMime } from '@/utils/files';
 export async function POST(req: Request) {
   try {
     checkOrigin(req);
@@ -17,6 +17,7 @@ export async function POST(req: Request) {
         name: z.string().min(1).max(180),
         size: z.number().int().positive(),
         type: z.string(),
+        upload_id: z.uuid().optional(),
       })
       .parse(await readJson(req));
     const ext = validateFile(b, b.bucket);
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
       await db.from('exams').select('id,class_id,start_time').eq('id', b.exam_id).single(),
     );
     if (!e) throw new Error('FORBIDDEN');
-    const id = randomUUID(),
+    const id = b.upload_id || randomUUID(),
       year = new Date(e.start_time).getUTCFullYear();
     const path =
       b.bucket === 'exams'
@@ -41,16 +42,20 @@ export async function POST(req: Request) {
           problem_id: b.problem_id,
           path,
           name: b.name,
-          mime_type: b.type,
+          mime_type: fileMime(b),
           size_bytes: b.size,
         },
       }),
     );
+    if (asset.ready) return NextResponse.json({ asset, path: asset.path, ready: true });
     const signed = checked(
       await adminClient().storage.from(b.bucket).createSignedUploadUrl(path, { upsert: false }),
     );
     if (!signed) throw new Error('INVALID_FILES');
-    return NextResponse.json({ asset, token: signed.token, path });
+    return NextResponse.json(
+      { asset, token: signed.token, path },
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
   } catch (e) {
     return fail(e);
   }
@@ -58,10 +63,10 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     checkOrigin(req);
-    const { db } = await authContext();
+    const { db, profile } = await authContext();
     const { id } = z.object({ id: z.uuid() }).parse(await readJson(req));
     const f = checked(await db.from('file_assets').select('*').eq('id', id).single());
-    if (!f) throw new Error('FORBIDDEN');
+    if (!f || f.owner_id !== profile.id) throw new Error('FORBIDDEN');
     if (f.ready) return NextResponse.json({ ok: true });
     const admin = adminClient();
     const info = checked(await admin.storage.from(f.bucket).info(f.path));
@@ -75,6 +80,7 @@ export async function PATCH(req: Request) {
     const response = await fetch(signed.signedUrl, {
       headers: { Range: 'bytes=0-15' },
       cache: 'no-store',
+      signal: AbortSignal.timeout(15000),
     });
     if (!response.ok || !response.body) throw new Error('INVALID_FILES');
     const reader = response.body.getReader();

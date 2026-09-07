@@ -6,7 +6,7 @@ import { PeopleTable } from '@/components/people-table';
 import { UserManager } from '@/components/user-manager';
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const d = await overview();
+  const d = await overview(['classes', 'members', 'profiles'], id);
   const c = d.classes.find((c) => c.id === id);
   if (!c) notFound();
   const members = new Set(d.members.filter((m) => m.class_id === id).map((m) => m.student_id));

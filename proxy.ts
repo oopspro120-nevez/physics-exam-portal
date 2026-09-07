@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { sessionCookieOptions } from '@/lib/session';
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -13,7 +14,7 @@ export async function proxy(request: NextRequest) {
         response = NextResponse.next({ request });
         items.forEach(({ name, value, options }) =>
           response.cookies.set(name, value, {
-            ...options,
+            ...sessionCookieOptions(options),
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
@@ -22,10 +23,10 @@ export async function proxy(request: NextRequest) {
       },
     },
   });
-  await db.auth.getUser();
+  await db.auth.getClaims();
   response.headers.set('Cache-Control', 'private, no-store');
   return response;
 }
 export const config = {
-  matcher: ['/admin/:path*', '/teacher/:path*', '/student/:path*', '/api/:path*'],
+  matcher: ['/admin/:path*', '/teacher/:path*', '/student/:path*'],
 };

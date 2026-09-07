@@ -13,8 +13,17 @@ import {
 } from 'lucide-react';
 import type { Profile } from '@/types/domain';
 import { useState } from 'react';
+import { SessionGuard, type PortalSession } from '@/components/session-guard';
 const roleNames = { admin: 'Quản trị viên', teacher: 'Giáo viên', student: 'Học sinh' };
-export function Shell({ profile, children }: { profile: Profile; children: React.ReactNode }) {
+export function Shell({
+  profile,
+  session,
+  children,
+}: {
+  profile: Profile;
+  session: PortalSession;
+  children: React.ReactNode;
+}) {
   const path = usePathname();
   const [error, setError] = useState('');
   const base = '/' + profile.role;
@@ -41,7 +50,12 @@ export function Shell({ profile, children }: { profile: Profile; children: React
     const active = suffix ? path.startsWith(href) : path === href;
     const I = Icon as typeof Atom;
     return (
-      <Link className={'nav-link ' + (active ? 'active' : '')} href={href} key={href}>
+      <Link
+        prefetch={false}
+        className={'nav-link ' + (active ? 'active' : '')}
+        href={href}
+        key={href}
+      >
         <I size={19} />
         {label as string}
       </Link>
@@ -51,6 +65,11 @@ export function Shell({ profile, children }: { profile: Profile; children: React
     try {
       const r = await fetch('/api/auth/logout', { method: 'POST' });
       if (!r.ok) throw new Error();
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel('portal-session-' + session.session_id);
+        channel.postMessage({ type: 'logout' });
+        channel.close();
+      }
       window.location.assign('/login');
     } catch {
       setError('Không thể đăng xuất. Vui lòng thử lại.');
@@ -58,8 +77,9 @@ export function Shell({ profile, children }: { profile: Profile; children: React
   }
   return (
     <div className="app-shell">
+      <SessionGuard session={session} />
       <aside className="sidebar">
-        <Link className="brand" href={base}>
+        <Link prefetch={false} className="brand" href={base}>
           <span className="brand-icon">
             <Atom size={24} />
           </span>

@@ -28,17 +28,27 @@ export function Contest({ initial, studentId }: { initial: ContestData; studentI
     [tab, setTab] = useState<'pdf' | 'answer'>('answer');
   const anchor = useRef({ server: Date.parse(initial.server_time), mono: 0 });
   const [fresh, setFresh] = useState(true);
+  const refreshing = useRef(false);
   const refresh = useCallback(async () => {
-    const r = await fetch('/api/contest?id=' + initial.exam.id, { cache: 'no-store' });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error);
-    anchor.current = { server: Date.parse(d.server_time), mono: performance.now() };
-    setRemaining(
-      d.session ? Math.max(0, Date.parse(d.session.deadline) - Date.parse(d.server_time)) : 0,
-    );
-    setData(d);
-    setFresh(true);
-    setSelected((s) => s || d.problems[0]?.id || '');
+    if (refreshing.current) return;
+    refreshing.current = true;
+    try {
+      const r = await fetch('/api/contest?id=' + initial.exam.id, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(15000),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      anchor.current = { server: Date.parse(d.server_time), mono: performance.now() };
+      setRemaining(
+        d.session ? Math.max(0, Date.parse(d.session.deadline) - Date.parse(d.server_time)) : 0,
+      );
+      setData(d);
+      setFresh(true);
+      setSelected((s) => s || d.problems[0]?.id || '');
+    } finally {
+      refreshing.current = false;
+    }
   }, [initial.exam.id]);
   useEffect(() => {
     anchor.current = { server: Date.parse(initial.server_time), mono: performance.now() };
@@ -47,7 +57,7 @@ export function Contest({ initial, studentId }: { initial: ContestData; studentI
     const tick = setInterval(() => {
       const now = anchor.current.server + (performance.now() - anchor.current.mono);
       setRemaining(data.session ? Math.max(0, Date.parse(data.session.deadline) - now) : 0);
-      if (performance.now() - anchor.current.mono > 35000) setFresh(false);
+      if (performance.now() - anchor.current.mono > 65000) setFresh(false);
     }, 1000);
     return () => clearInterval(tick);
   }, [data.session?.deadline]);
@@ -58,7 +68,9 @@ export function Contest({ initial, studentId }: { initial: ContestData; studentI
         if (e.message?.includes('đăng nhập') || e.message?.includes('thiết bị'))
           setError(e.message);
       });
-    const timer = setInterval(reload, 10000);
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible' && navigator.onLine) reload();
+    }, 20000);
     const visible = () => {
       if (document.visibilityState === 'visible') reload();
     };

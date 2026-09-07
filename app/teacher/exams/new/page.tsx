@@ -6,13 +6,13 @@ export default async function Page({
 }: {
   searchParams: Promise<{ class?: string }>;
 }) {
-  const d = await overview();
+  const d = await overview(['classes']);
   const q = await searchParams;
   return (
     <>
       <PageHead
         title="Tạo kỳ thi"
-        description="01 Cấu hình → 02 Tải đề PDF → 03 Khai báo Problems"
+        description="Chọn lớp và lịch, tải PDF, sau đó thiết lập câu hỏi và giao đề."
       />
       {d.classes.length ? (
         <section className="card">

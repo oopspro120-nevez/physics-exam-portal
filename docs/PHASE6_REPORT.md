@@ -1,3 +1,5 @@
+> Báo cáo lịch sử Phase 6. Thay đổi tháng 9/2026 và giới hạn xác minh hiện tại nằm trong [UPGRADE_2026_09.md](UPGRADE_2026_09.md).
+
 # Báo cáo Phase 6
 
 ## Trạng thái

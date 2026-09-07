@@ -3,7 +3,7 @@ import { BookOpen, ArrowRight } from 'lucide-react';
 import { overview } from '@/services/data';
 import { PageHead, Empty } from '@/components/ui';
 export default async function Page() {
-  const d = await overview();
+  const d = await overview(['classes', 'members', 'exams']);
   return (
     <>
       <PageHead title="Lớp phụ trách" description="Các lớp được quản trị viên phân công cho bạn." />
