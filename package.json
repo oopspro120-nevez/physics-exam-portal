@@ -1,0 +1,50 @@
+{
+  "name": "physics-exam-portal",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "bootstrap-admin": "node --env-file=.env.local scripts/bootstrap-admin.mjs",
+    "format": "prettier --write app components lib services types utils tests scripts next.config.ts proxy.ts",
+    "build:worker": "opennextjs-cloudflare build --skipNextBuild && node scripts/stage-worker.mjs",
+    "backup:storage": "node --env-file=.env.local scripts/backup-storage.mjs"
+  },
+  "dependencies": {
+    "@supabase/server": "^1.5.3",
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.57.0",
+    "exceljs": "^4.4.0",
+    "katex": "^0.16.22",
+    "lucide-react": "^0.468.0",
+    "next": "^16.0.0",
+    "papaparse": "^5.5.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "server-only": "^0.0.1",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.14",
+    "@opennextjs/cloudflare": "^1.0.0",
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/katex": "^0.16.7",
+    "@types/node": "^24.0.0",
+    "@types/papaparse": "^5.3.16",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "prettier": "^3.6.2",
+    "tailwindcss": "^4.1.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.0.0"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
+  }
+}
